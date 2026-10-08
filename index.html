@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore monthly arXiv submissions and mathematics subcategories from locally maintained metadata.">
+  <title>arXiv mathematics activity</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%230d2442'/%3E%3Cpath d='M7 23V16M16 23V9M25 23V5' stroke='%2344c6ef' stroke-width='4'/%3E%3C/svg%3E">
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #132d4c; background: #f1f5f9; font-size: 16px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.55; }
+    header { background: #0d2442; color: white; padding: 2rem max(1rem, calc((100vw - 1120px) / 2)); border-bottom: 4px solid #44c6ef; }
+    header p { color: #cbdcee; margin: .5rem 0 0; }
+    h1 { font-size: clamp(1.65rem, 4vw, 2.3rem); line-height: 1.2; margin: 0; font-weight: 650; }
+    h2 { font-size: 1.15rem; margin: 0 0 1rem; }
+    main { max-width: 1152px; padding: 1.5rem 1rem 3rem; margin: auto; }
+    .panel { background: white; border: 1px solid #cad6e2; border-radius: 8px; padding: 1.4rem; margin-bottom: 1rem; }
+    form { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; }
+    label { flex: 1 1 14rem; font-size: .9rem; font-weight: 600; }
+    select, button { font: inherit; min-height: 44px; border-radius: 5px; }
+    select { display: block; width: 100%; border: 1px solid #91a5ba; padding: .5rem .7rem; margin-top: .35rem; color: inherit; background: white; }
+    button { border: 1px solid #0c5bb4; color: white; background: #0c5bb4; padding: .5rem 1.4rem; cursor: pointer; font-weight: 600; }
+    button:disabled { opacity: .5; cursor: default; }
+    button:hover:not(:disabled) { background: #08488f; }
+    :focus-visible { outline: 3px solid #1678dc; outline-offset: 3px; }
+    .caption, footer { color: #50657c; font-size: .9rem; }
+    #status, #missing { overflow-wrap: anywhere; }
+    .error { color: #a12c21; }
+    .total { display: block; font-size: clamp(2rem, 8vw, 3.5rem); font-variant-numeric: tabular-nums; line-height: 1.2; margin: .8rem 0; }
+    a { color: #0c5bb4; }
+    .analysis-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+    .analysis-grid .panel { min-width: 0; }
+    .scroll { max-height: 28rem; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { text-align: right; padding: .6rem .4rem; border-bottom: 1px solid #dce5ee; }
+    th:first-child, td:first-child { text-align: left; white-space: nowrap; }
+    th { font-size: .9rem; background: white; position: sticky; top: 0; }
+    .category-row { margin-bottom: 1rem; }
+    .category-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .25rem .8rem; font-size: .9rem; }
+    .category-name { flex: 1 1 12rem; }
+    .track { height: .4rem; background: #e7eef5; border-radius: 3px; margin-top: .35rem; }
+    .fill { height: 100%; border-radius: 3px; }
+    .toggles { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+    .toggle { background: white; color: #132d4c; border: 1px solid #afbdca; padding: .35rem .7rem; font-size: .9rem; }
+    .toggle[aria-pressed="true"] { background: #e5f0fc; border-color: #0c5bb4; box-shadow: inset 0 0 0 1px #0c5bb4; }
+    .toggle:hover:not(:disabled) { background: #eef4fa; }
+    .toggle-count { color: #50657c; font-weight: 400; margin-left: .4rem; }
+    .big-show { font-size: 1.1rem; min-width: 10rem; margin-bottom: 1rem; }
+    .legend { display: flex; gap: .7rem 1.2rem; flex-wrap: wrap; list-style: none; padding: 0; font-size: .9rem; }
+    .legend li { display: flex; align-items: center; gap: .4rem; }
+    .swatch { width: 1.5rem; border-top: 3px solid; }
+    #chart { min-height: 320px; }
+    #chart svg { display: block; width: 100%; height: 340px; }
+    #chart-note { margin-top: .5rem; }
+    .switch-label { display: inline-flex; align-items: center; gap: .5rem; font-size: .9rem; margin-bottom: .6rem; }
+    .switch-label input { width: 1.1rem; height: 1.1rem; accent-color: #0c5bb4; }
+    .heat-legend { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+    .heat-gradient { width: 10rem; max-width: 50%; height: .9rem; border: 1px solid #cad6e2; background: linear-gradient(to right, #fff, #ec4899); }
+    .pending { color: #8a4c05; }
+    @media (max-width: 850px) { .analysis-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) { form > * { flex: 1 1 100%; } .panel { padding: 1rem; } }
+  </style>
+</head>
+<body>
+  <header><h1>arXiv mathematics activity</h1><p>Monthly submissions and primary-category proportions.</p></header>
+  <main>
+    <section class="panel" aria-labelledby="period-title">
+      <h2 id="period-title">Period</h2>
+      <form id="period-form">
+        <label>From<select id="from" disabled aria-label="From year and month"></select></label>
+        <label>To<select id="to" disabled aria-label="To year and month"></select></label>
+        <button id="show" disabled type="submit">SHOW</button>
+      </form>
+      <p class="caption" id="coverage">Checking data/arxiv…</p>
+      <p id="status" role="status" aria-live="polite">Reading available months…</p>
+    </section>
+    <section class="panel" id="result" hidden aria-live="polite" aria-labelledby="result-title">
+      <h2 id="result-title">Submission total</h2>
+      <p class="caption" id="result-period"></p>
+      <output class="total" id="total" for="from to"></output>
+      <p id="missing"></p>
+    </section>
+    <div id="analysis" hidden>
+      <div class="analysis-grid">
+        <section class="panel" aria-labelledby="monthly-title">
+          <h2 id="monthly-title">Monthly submissions</h2>
+          <label class="switch-label"><input type="checkbox" id="combine-years">Combine years</label>
+          <p class="caption" id="monthly-note">Share of all loaded submissions in the selected period.</p>
+          <div class="scroll"><table><thead><tr id="monthly-head"><th>Month</th><th>Articles</th><th>Share</th></tr></thead><tbody id="monthly-rows"></tbody></table></div>
+        </section>
+        <section class="panel" aria-labelledby="categories-title">
+          <h2 id="categories-title">Category proportions</h2>
+          <p class="caption">Each paper counts once, under its primary category. Official aliases are grouped together. Percentages use the loaded period total.</p>
+          <div class="scroll" id="category-shares"></div>
+        </section>
+      </div>
+      <section class="panel" aria-labelledby="graph-title">
+        <h2 id="graph-title">Monthly submissions by subcategory</h2>
+        <label class="switch-label"><input type="checkbox" id="average-authors">Average authors</label>
+        <p class="caption">Toggle mathematics subcategories, then press SHOW. Button counts cover the loaded period.</p>
+        <div class="toggles" id="category-toggles" role="group" aria-label="Mathematics subcategories"></div>
+        <button class="big-show" id="show-graph" type="button">SHOW</button>
+        <p class="caption" id="selection-status" role="status"></p>
+        <ul class="legend" id="legend" aria-label="Displayed subcategories"></ul>
+        <div id="chart"></div>
+        <p class="caption" id="chart-note">Lines interpolate the actual monthly counts smoothly. Missing months leave gaps. Hover over a point for its exact count.</p>
+        <details><summary>Monthly values for the displayed lines</summary><div class="scroll" id="graph-values"></div></details>
+      </section>
+      <section class="panel" aria-labelledby="authors-title">
+        <h2 id="authors-title">Articles by category and number of authors</h2>
+        <p class="caption">All loaded articles in the selected period, grouped by primary category.</p>
+        <p class="caption">Background color shows each cell's proportion within its category, among articles with known author counts.</p>
+        <div class="heat-legend caption" aria-label="Color scale: white is zero percent, strong pink is one hundred percent"><span>0%</span><span class="heat-gradient" aria-hidden="true"></span><span>100%</span></div>
+        <div class="scroll" id="author-table"></div>
+        <p class="caption" id="author-note"></p>
+      </section>
+    </div>
+    <footer>Metadata: CC0 1.0. <a href="https://info.arxiv.org/help/api/tou.html">arXiv source terms</a>.</footer>
+    <noscript><p class="error">JavaScript is disabled. Enable it to read the local metadata files.</p></noscript>
+  </main>
+  <!-- Start as a classic script so file:// and module-loading failures can
+       be reported before attempting to import the separate data layer. -->
+  <script>
+    const $ = id => document.getElementById(id);
+    const formatCount = n => new Intl.NumberFormat().format(n);
+    const formatAverage = n => new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    let data, calendarMonths, groupCalendarMonths;
+    let analysis = null;
+    let renderedCategories = [];
+    const selectedCategories = new Set();
+    const mathNames = {
+      AC: 'Commutative Algebra', AG: 'Algebraic Geometry', AP: 'Analysis of PDEs', AT: 'Algebraic Topology',
+      CA: 'Classical Analysis and ODEs', CO: 'Combinatorics', CT: 'Category Theory', CV: 'Complex Variables',
+      DG: 'Differential Geometry', DS: 'Dynamical Systems', FA: 'Functional Analysis', GM: 'General Mathematics',
+      GN: 'General Topology', GR: 'Group Theory', GT: 'Geometric Topology', HO: 'History and Overview',
+      IT: 'Information Theory', KT: 'K-Theory and Homology', LO: 'Logic', MG: 'Metric Geometry',
+      MP: 'Mathematical Physics', NA: 'Numerical Analysis', NT: 'Number Theory', OA: 'Operator Algebras',
+      OC: 'Optimization and Control', PR: 'Probability', QA: 'Quantum Algebra', RA: 'Rings and Algebras',
+      RT: 'Representation Theory', SG: 'Symplectic Geometry', SP: 'Spectral Theory', ST: 'Statistics Theory'
+    };
+    const categoryCodes = Object.keys(mathNames).map(code => 'math.' + code).sort();
+    const nameFor = code => code.startsWith('math.') && mathNames[code.slice(5)]
+      ? `${code} · ${mathNames[code.slice(5)]}` : code;
+    const colorFor = code => {
+      const index = Math.max(0, categoryCodes.indexOf(code));
+      return code.startsWith('math.') ? `hsl(${(index * 137.508 + 210) % 360} 68% 38%)` : '#65768a';
+    };
+    const percentage = (n, total) => total ? (100 * n / total).toFixed(2) + '%' : '—';
+    let busy = false;
+    const missing = new Set();
+    function status(text, error = false) {
+      $('status').textContent = text;
+      $('status').classList.toggle('error', error);
+    }
+    function setBusy(value) {
+      busy = value;
+      for (const id of ['from', 'to', 'show']) {
+        $(id).disabled = value || !data?.manifest?.months.length;
+      }
+    }
+    function updateLabels() {
+      for (const id of ['from', 'to']) {
+        for (const option of $(id).options) {
+          option.textContent = option.value + (missing.has(option.value) ? ' (missing)' : '');
+        }
+      }
+    }
+    async function initialize() {
+      setBusy(true);
+      try {
+        if (location.protocol === 'file:') {
+          throw new Error('This page was opened as a file. Run make serve in the extracted arxiv-maintenance folder, then open http://localhost:8000.');
+        }
+        status('Starting the data loader…');
+        let timer;
+        let loader;
+        try {
+          loader = await Promise.race([
+            import('./data-loader.mjs?v=20261008-7'),
+            new Promise((_, reject) => {
+              timer = setTimeout(() => reject(new Error('Loading data-loader.mjs timed out.')), 15000);
+            })
+          ]);
+        } catch (error) {
+          throw new Error(`The data loader could not start: ${error.message} Keep data-loader.mjs beside index.html and serve both with make serve.`);
+        } finally { clearTimeout(timer); }
+        if (typeof loader.ArxivDataset !== 'function' ||
+            typeof loader.calendarMonths !== 'function' ||
+            typeof loader.groupCalendarMonths !== 'function' ||
+            typeof loader.ArxivDataset.prototype.summarize !== 'function') {
+          throw new Error('The data loader is an older version. Extract all files from the updated archive together.');
+        }
+        calendarMonths = loader.calendarMonths;
+        groupCalendarMonths = loader.groupCalendarMonths;
+        data = new loader.ArxivDataset('./data/arxiv/');
+        window.arxivData = data;
+        status('Reading available months…');
+        const manifest = await data.loadIndex();
+        if (!manifest.months.length) {
+          $('coverage').textContent = 'No monthly snapshots available in data/arxiv.';
+          status('Run make fetch-metadata, then reload this page.');
+          return;
+        }
+        const first = manifest.months[0].month;
+        const last = manifest.months.at(-1).month;
+        const months = calendarMonths(first, last);
+        const indexed = new Set(manifest.months.map(item => item.month));
+        for (const month of months) if (!indexed.has(month)) missing.add(month);
+        for (const id of ['from', 'to']) {
+          $(id).replaceChildren(...months.map(month => new Option(month, month)));
+        }
+        $('from').value = first;
+        $('to').value = last;
+        updateLabels();
+        $('coverage').textContent = `${first} to ${last} · Query: ${manifest.months[0].query || 'all arXiv categories'}`;
+        status('Select a period. Both endpoint months are included.');
+        window.dispatchEvent(new CustomEvent('arxiv:index', { detail: manifest }));
+      } catch (error) {
+        $('coverage').textContent = 'Data from data/arxiv could not be loaded.';
+        status(error.message, true);
+      }
+      finally { setBusy(false); }
+    }
+    $('period-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (busy || !data?.manifest?.months.length) return;
+      const from = $('from').value, to = $('to').value;
+      // Hide an earlier result while evaluating a new range or an error.
+      $('result').hidden = true;
+      $('analysis').hidden = true;
+      analysis = null;
+      window.arxivSummary = null;
+      setBusy(true);
+      status('Reading monthly submissions…');
+      try {
+        const summary = await data.summarize({ from, to, retainRecords: true,
+          onProgress: ({ loaded, total, month }) => status(`Checking ${month} · ${loaded} of ${total} months`) });
+        for (const item of summary.months) {
+          if (item.count === null) missing.add(item.month); else missing.delete(item.month);
+        }
+        updateLabels();
+        $('result-title').textContent = summary.missingMonths.length ? 'Known submission total' : 'Submission total';
+        $('result-period').textContent = `${from} to ${to} · ${summary.loadedMonths} of ${summary.months.length} months available`;
+        $('total').textContent = summary.loadedMonths ? formatCount(summary.total) : 'Unavailable';
+        $('missing').textContent = summary.missingMonths.length
+          ? `Missing months: ${summary.missingMonths.join(', ')}. Their submissions are unknown and excluded from the total.`
+          : 'All months in the selected period are available.';
+        $('result').hidden = false;
+        analysis = summary;
+        renderAnalysis();
+        window.arxivSummary = summary;
+        window.dispatchEvent(new CustomEvent('arxiv:summary', { detail: summary }));
+        status('Done.');
+      } catch (error) { status(error.message, true); }
+      finally { setBusy(false); }
+    });
+    function makeTable(headers, rows) {
+      const table = document.createElement('table');
+      const head = document.createElement('thead');
+      const header = document.createElement('tr');
+      for (const text of headers) { const th = document.createElement('th'); th.textContent = text; th.scope = 'col'; header.append(th); }
+      head.append(header); table.append(head);
+      const body = document.createElement('tbody');
+      for (const values of rows) {
+        const row = document.createElement('tr');
+        for (const value of values) { const td = document.createElement('td'); td.textContent = value; row.append(td); }
+        body.append(row);
+      }
+      table.append(body); return table;
+    }
+    function renderMonthlyTable() {
+      if (!analysis) return;
+      const combined = $('combine-years').checked;
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+      const headers = combined ? ['Month', 'Articles', 'Mean/month', 'Share', 'Months available'] : ['Month', 'Articles', 'Share'];
+      $('monthly-head').replaceChildren();
+      for (const text of headers) { const cell = document.createElement('th'); cell.scope = 'col'; cell.textContent = text; $('monthly-head').append(cell); }
+      $('monthly-note').textContent = combined
+        ? 'Calendar months summed across loaded years. Mean/month uses available snapshots; coverage shows available / selected months. Share uses the loaded period total.'
+        : 'Share of all loaded submissions in the selected period.';
+      $('monthly-title').textContent = combined ? 'Calendar-month comparison' : 'Monthly submissions';
+      $('monthly-rows').replaceChildren();
+      const months = combined ? groupCalendarMonths(analysis.months) : analysis.months;
+      for (const item of months) {
+        const row = document.createElement('tr');
+        const values = combined ? [monthNames[Number(item.month) - 1], item.count === null ? '—' : formatCount(item.count),
+          item.average === null ? '—' : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(item.average),
+          item.count === null ? '—' : percentage(item.count, analysis.total), `${item.availableMonths} / ${item.expectedMonths}`]
+          : [item.month, item.count === null ? 'Missing' : formatCount(item.count), item.count === null ? '—' : percentage(item.count, analysis.total)];
+        for (const text of values) {
+          const cell = document.createElement('td'); cell.textContent = text; row.append(cell);
+        }
+        $('monthly-rows').append(row);
+      }
+    }
+    function authorHeatColor(proportion) {
+      const t = Math.max(0, Math.min(1, proportion));
+      // Linear RGB ramp: white (0%) to #ec4899 (100%).
+      return `rgb(${[236, 72, 153].map(channel => Math.round(255 + t * (channel - 255))).join(', ')})`;
+    }
+    function renderAuthorTable() {
+      const entries = Object.entries(analysis.authorsByCategory).sort(([a], [b]) => a.localeCompare(b));
+      const rows = entries.map(([category, item]) => {
+        const known = item.counts.reduce((a, b) => a + b, 0);
+        const label = nameFor(category) + (item.unknown ? ` (${formatCount(item.unknown)} unknown)` : '');
+        return [label, ...item.counts.map(count => known ? formatCount(count) : '—')];
+      });
+      const table = makeTable(['Category', '1', '2', '3', '4', '5+'], rows);
+      for (const [i, [category, item]] of entries.entries()) {
+        const known = item.counts.reduce((a, b) => a + b, 0);
+        const cells = Array.from(table.children[1].children[i].children).slice(1);
+        for (const [j, cell] of cells.entries()) {
+          cell.style.backgroundColor = known ? authorHeatColor(item.counts[j] / known) : '#fff';
+          cell.style.color = '#10131a';
+          cell.title = known
+            ? `${formatCount(item.counts[j])} articles · ${percentage(item.counts[j], known)} of known author counts in ${category}`
+            : `Author counts are unavailable for ${category}`;
+          cell.setAttribute('aria-label', cell.title);
+        }
+      }
+      $('author-table').replaceChildren(table);
+      $('author-note').textContent = analysis.unknownAuthorCounts
+        ? `${formatCount(analysis.unknownAuthorCounts)} articles have no valid author count and are excluded from these columns. Refresh older snapshots with make fetch-metadata REFRESH=1, then run make unpack if you use plain JSON.`
+        : analysis.total ? 'Cells show article counts. The 5+ column includes every article with five or more authors.' : 'No loaded articles.';
+    }
+    function renderAnalysis() {
+      renderMonthlyTable();
+      renderAuthorTable();
+      const entries = Object.entries(analysis.categoryTotals).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      $('category-shares').replaceChildren();
+      for (const [code, count] of entries) {
+        const row = document.createElement('div'); row.className = 'category-row';
+        const heading = document.createElement('div'); heading.className = 'category-heading';
+        const label = document.createElement('span'); label.className = 'category-name'; label.textContent = nameFor(code);
+        const value = document.createElement('span'); value.textContent = `${formatCount(count)} · ${percentage(count, analysis.total)}`;
+        heading.append(label, value);
+        const track = document.createElement('div'); track.className = 'track';
+        const fill = document.createElement('div'); fill.className = 'fill';
+        fill.style.width = (analysis.total ? 100 * count / analysis.total : 0) + '%'; fill.style.background = colorFor(code);
+        track.append(fill); row.append(heading, track); $('category-shares').append(row);
+      }
+      if (!entries.length) $('category-shares').textContent = 'No articles in the available months.';
+      selectedCategories.clear();
+      for (const [code] of entries.filter(([code]) => code.startsWith('math.')).slice(0, 3)) selectedCategories.add(code);
+      $('category-toggles').replaceChildren();
+      const codes = [...new Set([...categoryCodes, ...entries.map(([code]) => code).filter(code => code.startsWith('math.'))])].sort();
+      for (const code of codes) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'toggle';
+        button.setAttribute('aria-pressed', String(selectedCategories.has(code)));
+        button.setAttribute('aria-label', nameFor(code)); button.title = nameFor(code);
+        const text = document.createElement('span'); text.textContent = code;
+        const count = document.createElement('span'); count.className = 'toggle-count'; count.textContent = formatCount(analysis.categoryTotals[code] || 0);
+        button.append(text, count);
+        button.addEventListener('click', () => {
+          if (selectedCategories.has(code)) selectedCategories.delete(code); else selectedCategories.add(code);
+          button.setAttribute('aria-pressed', String(selectedCategories.has(code)));
+          $('selection-status').textContent = `${selectedCategories.size} selected. Press SHOW to update the graph.`;
+          $('selection-status').classList.add('pending');
+        });
+        $('category-toggles').append(button);
+      }
+      $('analysis').hidden = false;
+      applyGraphSelection();
+    }
+    function svgElement(tag, attrs = {}, text) {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+    // Shape-preserving cubic Hermite interpolation. Control points stay
+    // within neighboring monthly values: no invented extrema or negatives.
+    function smoothPath(points) {
+      if (!points.length) return '';
+      let path = `M${points[0][0]},${points[0][1]}`;
+      if (points.length === 1) return path;
+      const slopes = points.slice(1).map((p, i) => (p[1] - points[i][1]) / (p[0] - points[i][0]));
+      const tangents = points.map((_, i) => {
+        if (i === 0) return slopes[0];
+        if (i === points.length - 1) return slopes.at(-1);
+        return slopes[i - 1] * slopes[i] <= 0 ? 0 : 2 / (1 / slopes[i - 1] + 1 / slopes[i]);
+      });
+      for (let i = 0; i < slopes.length; i++) {
+        if (slopes[i] === 0) { tangents[i] = tangents[i + 1] = 0; continue; }
+        const a = tangents[i] / slopes[i], b = tangents[i + 1] / slopes[i];
+        const length = Math.hypot(a, b);
+        if (length > 3) { tangents[i] = 3 * a * slopes[i] / length; tangents[i + 1] = 3 * b * slopes[i] / length; }
+      }
+      for (let i = 0; i < points.length - 1; i++) {
+        const [x, y] = points[i], [nextX, nextY] = points[i + 1]; const dx = (nextX - x) / 3;
+        path += ` C${x + dx},${y + tangents[i] * dx} ${nextX - dx},${nextY - tangents[i + 1] * dx} ${nextX},${nextY}`;
+      }
+      return path;
+    }
+    function applyGraphSelection() {
+      renderedCategories = [...selectedCategories].sort();
+      $('selection-status').classList.remove('pending');
+      $('selection-status').textContent = `${renderedCategories.length} subcategories displayed.`;
+      $('legend').replaceChildren();
+      for (const code of renderedCategories) {
+        const item = document.createElement('li'); const swatch = document.createElement('span'); swatch.className = 'swatch'; swatch.style.borderColor = colorFor(code);
+        const label = document.createElement('span'); label.textContent = code; item.title = nameFor(code);
+        item.append(swatch, label); $('legend').append(item);
+      }
+      updateGraphMetric();
+    }
+    function graphValue(item, code) {
+      if (item.count === null) return null;
+      if (!$('average-authors').checked) return item.categories[code] || 0;
+      const stats = item.authorStats?.[code];
+      return stats?.known ? stats.sum / stats.known : null;
+    }
+    function updateGraphMetric() {
+      if (!analysis) return;
+      const average = $('average-authors').checked;
+      $('graph-title').textContent = average ? 'Average authors by subcategory' : 'Monthly submissions by subcategory';
+      $('chart-note').textContent = average
+        ? 'Monthly means use articles with known author counts. Months without usable counts leave gaps. Hover over a point for the mean and sample size. Lines interpolate these means smoothly.'
+        : 'Lines interpolate the actual monthly counts smoothly. Missing months leave gaps. Hover over a point for its exact count.';
+      const rows = analysis.months.map(item => [item.month, ...renderedCategories.map(code => {
+        const value = graphValue(item, code);
+        if (item.count === null) return 'Missing';
+        if (value === null) return 'Unknown';
+        return average ? `${formatAverage(value)} (n=${item.authorStats[code].known})` : formatCount(value);
+      })]);
+      $('graph-values').replaceChildren(makeTable(['Month', ...renderedCategories], rows));
+      renderGraph();
+    }
+    function renderGraph() {
+      if (!analysis) return;
+      const container = $('chart'); container.replaceChildren();
+      if (!renderedCategories.length) { container.textContent = 'Select at least one subcategory and press SHOW.'; return; }
+      if (!analysis.loadedMonths) { container.textContent = 'No monthly data is available in this period.'; return; }
+      const width = Math.max(280, container.clientWidth), height = 340;
+      const left = 60, right = 18, top = 24, bottom = 54;
+      const plotWidth = width - left - right, plotHeight = height - top - bottom;
+      const months = analysis.months;
+      const average = $('average-authors').checked;
+      const values = months.flatMap(item => renderedCategories.map(code => graphValue(item, code))).filter(value => value !== null);
+      if (!values.length) { container.textContent = 'No known author counts for the displayed subcategories in this period.'; return; }
+      const maximum = Math.max(0, ...values);
+      const rawStep = Math.max(average ? .25 : 1, maximum / 4), power = 10 ** Math.floor(Math.log10(rawStep));
+      const factor = [1, 2, 5, 10].find(value => value * power >= rawStep);
+      const step = Math.max(average ? .25 : 1, factor * power), ceiling = Math.max(step, Math.ceil(maximum / step) * step);
+      const x = i => left + (months.length === 1 ? plotWidth / 2 : i * plotWidth / (months.length - 1));
+      const y = n => top + plotHeight * (1 - n / ceiling);
+      const title = average ? 'Average authors per article' : 'Monthly submissions';
+      const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': `${title} by selected mathematics primary category` });
+      svg.append(svgElement('title', {}, `${title}: ${renderedCategories.join(', ')}`));
+      svg.append(svgElement('text', { x: left, y: 14, fill: '#50657c', 'font-size': 13 }, average ? 'Authors / article' : 'Submissions'));
+      for (let value = 0; value <= ceiling; value += step) {
+        svg.append(svgElement('line', { x1: left, y1: y(value), x2: width - right, y2: y(value), stroke: '#dce5ee' }));
+        svg.append(svgElement('text', { x: left - 9, y: y(value) + 5, 'text-anchor': 'end', fill: '#50657c', 'font-size': 14 }, formatCount(value)));
+      }
+      const tickEvery = Math.max(1, Math.ceil(months.length / Math.max(2, Math.floor(plotWidth / 94))));
+      for (let i = 0; i < months.length; i++) {
+        if (months[i].count === null) {
+          const half = months.length === 1 ? plotWidth / 2 : plotWidth / (months.length - 1) / 2;
+          const a = Math.max(left, x(i) - half), b = Math.min(width - right, x(i) + half);
+          const gap = svgElement('rect', { x: a, y: top, width: b - a, height: plotHeight, fill: '#8795a5', opacity: .12 });
+          gap.append(svgElement('title', {}, `${months[i].month}: data missing`)); svg.append(gap);
+        }
+        if (i % tickEvery === 0 || i === months.length - 1) {
+          // Suppress the penultimate label if it would collide with the last.
+          if (i !== months.length - 1 && months.length - 1 - i < tickEvery * .75) continue;
+          svg.append(svgElement('text', { x: x(i), y: height - 24, 'text-anchor': i === 0 ? 'start' : i === months.length - 1 ? 'end' : 'middle', fill: '#50657c', 'font-size': 14 }, months[i].month));
+        }
+      }
+      for (const code of renderedCategories) {
+        const color = colorFor(code); let segment = [];
+        const drawSegment = () => {
+          if (segment.length > 1) svg.append(svgElement('path', { d: smoothPath(segment), fill: 'none', stroke: color, 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+          segment = [];
+        };
+        for (const [i, item] of months.entries()) {
+          const value = graphValue(item, code);
+          if (value === null) { drawSegment(); continue; }
+          segment.push([x(i), y(value)]);
+        }
+        drawSegment();
+        for (const [i, item] of months.entries()) {
+          const value = graphValue(item, code);
+          if (value === null) continue;
+          const point = svgElement('circle', { cx: x(i), cy: y(value), r: 3, fill: color, stroke: 'white', 'stroke-width': 1 });
+          const detail = average ? `${formatAverage(value)} authors per article (n=${item.authorStats[code].known} known author counts)` : `${formatCount(value)} submissions`;
+          point.append(svgElement('title', {}, `${code} · ${item.month}: ${detail}`)); svg.append(point);
+        }
+      }
+      container.append(svg);
+    }
+    $('show-graph').addEventListener('click', () => { if (analysis) applyGraphSelection(); });
+    $('combine-years').addEventListener('change', renderMonthlyTable);
+    $('average-authors').addEventListener('change', updateGraphMetric);
+    let resizeTimer;
+    window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderGraph, 100); });
+    initialize();
+  </script>
+</body>
+</html>
